@@ -63,8 +63,8 @@ class ExprData2():
                  wl_groups=None, wl_names=None, cpu_nums=None, 
                  query_event_dfs=None, query_plan_dfs=None, query_perf_dfs=None,
                  plan_mtxs=None, perf_mtxs=None, plan_feature_cols=None, perf_feature_cols=None):
-        self.__pkl_fdn = '../model/processed_wl/hyperscale2'
-        self.__fdn = '../model/hyperscale/'
+        self.__pkl_fdn = '../workloads/processed_wl/hyperscale2'
+        self.__fdn = '../workloads/hyperscale/'
         self.__wl_group_prefix = 'workload_'
         self.__config_prefix = 'cpu'
         self.__names = ['tpcc', 'tpch', 'twitter', 'twitter', 'tpch', 'tpch', 'tpcc', 'tpcc', 'twitter']
