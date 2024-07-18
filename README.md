@@ -1,6 +1,6 @@
 # scaling-prediction
 
-This repository contains code for our paper [**From Feature Selection to Resource Prediction: A Survey of Commonly Applied Workflows and Techniques**](https://github.com/mush-zhang/scaling-prediction/blob/main/ScalingPerformanceComputation_app.pdf)
+This repository contains code for our paper [**From Feature Selection to Resource Prediction: A Survey of Commonly Applied Workflows and Techniques**](https://anonymous.4open.science/r/scaling-prediction-C526/ScalingPerformanceComputation_extended.pdf)
 
 We examine the state-of-the-art strategies for  the three-step pipeline for workload scaling prediction: feature selection, workload similarity, and performance prediction, with the goal to identify which techniques work best in practice. Our experimental results reveal that while no universal solution exists for the prediction pipeline, certain best practices can improve prediction performance and reduce computation overhead. Based on our results, we outline important topics for future work that will benefit ML driven recommendation systems for resource allocation.
 
