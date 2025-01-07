@@ -29,6 +29,7 @@ import numpy as np
 import os
 import json
 import pickle
+import itertools
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
@@ -60,21 +61,23 @@ def update_class(main_class=None, exclude=("__module__", "__name__", "__dict__",
 # In[3]:
 
 
-class ExprData():
+class ExprDataMemCPU():
     def __init__(self, 
-                 wl_groups=None, wl_names=None, cpu_nums=None, run_idx=None, sampled_run_idx=None,
+                 wl_groups=None, wl_names=None, cpu_nums=None, mem_sizes=None,
+                 run_idx=None, sampled_run_idx=None,
                  wl_throughput=None, wl_latency=None, terminal_num=None,
                  wl_throughput_samples=None, wl_latency_samples=None,
                  query_event_dfs=None, query_plan_dfs=None, query_perf_dfs=None,
                  plan_mtxs=None, perf_mtxs=None, plan_feature_cols=None, perf_feature_cols=None):
-        self.__pkl_fdn = '../model/processed_wl/'
-        self.__fdn = '../model/workloads/'
-        self.__wl_group_prefix = 'workload_'
+        self.__pkl_fdns = ['../model/processed_wl/', '../model/processed_wl_small_cpu/']
+        self.__fdn = '../model/small_cpu/'
+        # self.__wl_group_prefix = 'workload_'
         self.__config_prefix = 'cpu'
-        self.__names = ['tpcc', 'tpch', 'twitter', 'twitter', 'tpch', 'tpch', 'tpcc', 'tpcc', 'twitter', 'ycsb', 'ycsb', 'ycsb']
+        # self.__names = ['tpcc', 'tpch', 'twitter', 'twitter', 'tpch', 'tpch', 'tpcc', 'tpcc', 'twitter', 'ycsb', 'ycsb', 'ycsb']
         self.wl_groups = wl_groups
         self.wl_names = wl_names
         self.cpu_nums = cpu_nums
+        self.mem_sizes = mem_sizes
         self.run_idx = run_idx
         self.sampled_run_idx = sampled_run_idx
         self.query_event_dfs = query_event_dfs
@@ -111,7 +114,7 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def get_num_exprs(self):
         return 0 if self.wl_groups is None else len(self.wl_groups)
 
@@ -124,7 +127,7 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def __parse_query_to_tree(self, plan):
         root = ET.fromstring(plan)
         xmlstr = minidom.parseString(ET.tostring(root)).toprettyxml(indent='\t')
@@ -182,7 +185,7 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     '''
     Attributes:
         query_plan_dfs: dataframe of query info from a workload, one column is query plan
@@ -198,7 +201,7 @@ class ExprData():
         for i in range(len(self.query_plan_dfs)):
             fv_df = pd.DataFrame()
             for idx, row in self.query_plan_dfs[i].iterrows():
-                curr_p = row.QUERY_PLAN
+                curr_p = row.query_plan
                 if isinstance(curr_p, pd.Series):
                     curr_p = curr_p[0]
                     # self.query_plan_dfs[i].at[idx, 'QUERY_PLAN'] = curr_p
@@ -207,7 +210,7 @@ class ExprData():
                 curr_df = pd.DataFrame([curr_dict])
                 fv_df = pd.concat([fv_df, curr_df], axis=0, ignore_index=True)
                 if not fea_col_filled:
-                    self.plan_feature_cols = fv_df.columns
+                    self.plan_feature_cols = fv_df.columns.to_list()
                     fea_col_filled = True
             mtxs.append(fv_df)
         self.query_plan_dfs = mtxs
@@ -217,7 +220,7 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def __process_csv_to_pickle(self):
         '''
         lists of:
@@ -231,10 +234,10 @@ class ExprData():
 
         mode = 0o666
 
-        iterable_all = zip(self.wl_groups, self.wl_names, self.cpu_nums, self.run_idx, self.query_event_dfs, self.query_perf_dfs, self.query_plan_dfs, self.wl_throughput, self.wl_latency, self.terminal_num, self.wl_throughput_samples, self.wl_latency_samples)
-        for expr_num, wl_type, cpu_num, run_idx, qe_df, perf_df, plan_df, curr_thr, curr_lat, curr_term, curr_thr_samples, curr_lat_samples in iterable_all:
+        iterable_all = zip(self.wl_groups, self.wl_names, self.cpu_nums, self.run_idx, self.query_event_dfs, self.query_perf_dfs, self.query_plan_dfs, self.wl_throughput, self.wl_latency, self.terminal_num, self.mem_sizes, self.wl_throughput_samples, self.wl_latency_samples)
+        for expr_num, wl_type, cpu_num, run_idx, qe_df, perf_df, plan_df, curr_thr, curr_lat, curr_term, curr_mem, curr_thr_samples, curr_lat_samples in iterable_all:
             new_fname_prefix = '_'.join([wl_type, str(expr_num), str(cpu_num), str(run_idx)])
-            new_dir = os.path.join(self.__pkl_fdn, new_fname_prefix)
+            new_dir = os.path.join(self.__pkl_fdns[1], new_fname_prefix)
             try:
                 os.mkdir(new_dir, mode)
             except:
@@ -254,6 +257,7 @@ class ExprData():
                 'latency': [curr_lat],
                 'throughput': [curr_thr],
                 'terminal': [curr_term],
+                'mem_size': [curr_mem]
                 # 'run_idx': [run_idx],
             }
             sum_df = pd.DataFrame.from_dict(summary_dict)
@@ -267,7 +271,7 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     '''
     not used
     '''
@@ -318,7 +322,7 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def load_pickle(self):
         '''
         lists of:
@@ -328,57 +332,62 @@ class ExprData():
         4. dataframe from query_event_log.csv
         5. dataframe from query_info_log.csv
         '''
-        self.wl_groups, self.wl_names, self.cpu_nums, self.terminal_num, self.run_idx, self.sampled_run_idx =  [], [], [], [], [], []
+        self.wl_groups, self.wl_names, self.cpu_nums = [], [], []
+        self.mem_sizes, self.terminal_num, self.run_idx, self.sampled_run_idx =  [], [], [], []
         self.query_event_dfs, self.query_perf_dfs, self.query_plan_dfs = [], [], []
         self.wl_throughput, self.wl_latency = [], []
         self.wl_throughput_samples, self.wl_latency_samples =  [], []
-        
-        for subfd in os.listdir(self.__pkl_fdn):
-            curr_subfd = os.path.join(self.__pkl_fdn, subfd)
+        for pkl_fdn in self.__pkl_fdns:
+            for subfd in os.listdir(pkl_fdn):
+                curr_subfd = os.path.join(pkl_fdn, subfd)
 
-            if os.path.isfile(curr_subfd) or 'hyperscale' in subfd:
-                continue
+                if os.path.isfile(curr_subfd) or 'hyperscale' in subfd:
+                    continue
 
-            vals = subfd.split('_')
-            self.wl_names.append(vals[0])
-            self.wl_groups.append(vals[1])
-            self.cpu_nums.append(vals[2])
-            self.run_idx.append(vals[3])
-            self.sampled_run_idx.append(vals[3])
+                vals = subfd.split('_')
+                self.wl_names.append(vals[0])
+                self.wl_groups.append(vals[1])
+                self.cpu_nums.append(vals[2])
+                self.run_idx.append(vals[3])
+                self.sampled_run_idx.append(vals[3])
 
-            for subf in os.listdir(curr_subfd):
-                curr_f = os.path.join(curr_subfd, subf)
-                if 'query_event.pkl' in subf:
-                    df = pd.read_pickle(curr_f)
-                    self.query_event_dfs.append(df)
-                if 'query_plan.pkl' in subf:
-                    df = pd.read_pickle(curr_f)
-                    self.query_plan_dfs.append(df)
-                if 'query_perf.pkl' in subf:
-                    df = pd.read_pickle(curr_f)
-                    self.query_perf_dfs.append(df)
-                if 'summary.pkl' in subf:
-                    df = pd.read_pickle(curr_f)
-                    self.wl_throughput.append(df['throughput'].to_list()[0])
-                    self.wl_latency.append(df['latency'].to_list()[0])
-                    self.terminal_num.append(df['terminal'].to_list()[0])
-                if 'throughput_samples.npy' in subf:
-                    self.wl_throughput_samples.append(np.load(curr_f, allow_pickle=True))
-                if 'latency_samples.npy' in subf:
-                    self.wl_latency_samples.append(np.load(curr_f, allow_pickle=True))
-            if len(self.query_event_dfs) < len(self.wl_names):
-                self.query_event_dfs.append(None)
-            if len(self.query_perf_dfs) < len(self.wl_names):
-                self.query_perf_dfs.append(None)
-            if len(self.wl_throughput) < len(self.wl_names):
-                self.wl_throughput.append(None)
-            if len(self.wl_latency) < len(self.wl_names):
-                self.wl_latency.append(None)
-            if len(self.terminal_num) < len(self.wl_names):
-                self.terminal_num.append(None)
-            if len(self.run_idx) < len(self.run_idx):
-                self.run_idx.append(None)
-        self.plan_feature_cols = self.query_plan_dfs[0].columns.to_list()
+                for subf in os.listdir(curr_subfd):
+                    curr_f = os.path.join(curr_subfd, subf)
+                    if 'query_event.pkl' in subf:
+                        df = pd.read_pickle(curr_f)
+                        self.query_event_dfs.append(df)
+                    if 'query_plan.pkl' in subf:
+                        df = pd.read_pickle(curr_f)
+                        self.query_plan_dfs.append(df)
+                    if 'query_perf.pkl' in subf:
+                        df = pd.read_pickle(curr_f)
+                        self.query_perf_dfs.append(df)
+                    if 'summary.pkl' in subf:
+                        df = pd.read_pickle(curr_f)
+                        self.wl_throughput.append(df['throughput'].to_list()[0])
+                        self.wl_latency.append(df['latency'].to_list()[0])
+                        self.terminal_num.append(df['terminal'].to_list()[0])
+                        if 'mem_size' in df.columns:
+                            self.mem_sizes.append(df['mem_size'].to_list()[0])
+                        else:
+                            self.mem_sizes.append(64)
+                    if 'throughput_samples.npy' in subf:
+                        self.wl_throughput_samples.append(np.load(curr_f, allow_pickle=True))
+                    if 'latency_samples.npy' in subf:
+                        self.wl_latency_samples.append(np.load(curr_f, allow_pickle=True))
+                if len(self.query_event_dfs) < len(self.wl_names):
+                    self.query_event_dfs.append(None)
+                if len(self.query_perf_dfs) < len(self.wl_names):
+                    self.query_perf_dfs.append(None)
+                if len(self.wl_throughput) < len(self.wl_names):
+                    self.wl_throughput.append(None)
+                if len(self.wl_latency) < len(self.wl_names):
+                    self.wl_latency.append(None)
+                if len(self.terminal_num) < len(self.wl_names):
+                    self.terminal_num.append(None)
+                if len(self.run_idx) < len(self.run_idx):
+                    self.run_idx.append(None)
+            self.plan_feature_cols = self.query_plan_dfs[0].columns.to_list()
         
         self.plan_mtxs = [df[self.plan_feature_cols].to_numpy() for df in self.query_plan_dfs]
         self.perf_mtxs = [df[self.perf_feature_cols].to_numpy() if df is not None else None for df in self.query_perf_dfs]
@@ -389,41 +398,110 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def __manual_read_plan_csv(self, filename, seperator):
+        PLAN_TAG = 'ShowPlanXML'
+        curr_list = []
         with open(filename) as f:
-            header = True
-            prev_row = None
+            header = True         
+            
+            prev_row = ''
             for line in f:
-                # manually seperate
                 row = line.strip().split(seperator)
-                if len(row) < 4:
-                    if prev_row is None:
-                        prev_row = row
-                        continue
-                    prev_row[-1] += row[0]
-                    if len(row) > 1:
-                        prev_row.append(row[1])
-                        df.loc[len(df.index)] = prev_row
-                        prev_row = None
-                elif header:
-                    df = pd.DataFrame(columns=[row])
+                if len(row) == 0:
+                    continue
+                # if 'twitter' in filename and 'ter4' in filename:
+                #     print(len(curr_list))
+                #     print(row)
+                if header:
+                    df = pd.DataFrame(columns=row)
                     header = False
-                elif len(row) == 4:
-                    df.loc[len(df.index)] = row
-                elif len(row) > 4:
-                    temp_plan = row[1:-2]
-                    plan_string = seperator.join(temp_plan)
-                    revised_row = [row[0], plan_string, row[-2], row[-1]] 
-                    df.loc[len(df.index)] = revised_row
+                    continue
+                if len(curr_list) == 3 or len(curr_list) == 0:
+                    if len(curr_list) == 3:
+                        if (line.find('SQL,') != -1 or line.find('Stmt,') != -1 or line.startswith('query_stmt,') or 
+                            line.startswith('getFollowerNames,') or line.startswith('getTweet,') or
+                            line.startswith('getFollowing,') or line.startswith('getTweets') or
+                            line.startswith('insertTweet,')
+                           ):
+                            
+                            curr_list.append(prev_row)
+                            prev_row = ''
+                            df.loc[len(df.index)] = curr_list
+                            curr_list = []
+                        else:
+                            prev_row += ('\n' + line)
+                            continue
+                    curr_list.append(row[0]) # 0
+                    curr_list.append(row[1]) # 1
+
+                
+                start = line.find(f'<{PLAN_TAG}')
+                end = line.find(f'</{PLAN_TAG}>,')
+                assert(start > -1 or len(prev_row) > 0)
+                start = max(start, 0)
+                if end == -1:
+                    prev_row += line[start:]
+                else:
+                    plan_end = end+len(PLAN_TAG)+3
+                    prev_row += line[start:plan_end]
+                    
+                    curr_list.append(prev_row) # 2
+                    prev_row = line[plan_end:]
+                    # if 'twitter' in filename and 'ter4' in filename:
+                    #     print(prev_row)
+        # if 'twitter' in filename and 'ter4' in filename:
+        #     print(df.shape)
         return df
+#     def __manual_read_plan_csv(self, filename, seperator=','):
+#         with open(filename) as f:
+#             header = True
+            
+#             curr_row = []
+#             prev_str = ''
+#             for line in f:
+#                 # manually seperate
+#                 line = line.strip()
+#                 row = line.split(seperator)        
+#                 if header:
+#                     df = pd.DataFrame(columns=[row])
+#                     header = False
+#                 else:
+#                     if curr_row.size() < 2:
+#                         curr_row += row[:1]
+#                         if '</ShowPlanXML>' in line:
+#                             prev_str += row[-1]
+#                             temp_plan = row[2:-1]
+#                             plan_string = seperator.join(temp_plan)
+#                             curr_row.append(plan_string)
+#                         else:
+#                             prev_str += line[curr_row[0].size()+2+curr_row[1].size():]
+#                     else if curr_row.size() == 2:
+#                         print("should not be ther")
+#                         if '</ShowPlanXML>' in line:
+#                             temp_str += row[-1]
+#                             plan_string = prev_str + line[:-1*(temp_str.size()+1)]
+#                             curr_row.append(plan_string)
+#                             prev_str = temp_str
+#                         else:
+#                             prev_str += line[curr_row[0].size()+2+curr_row[1].size():]
+#                     else:
+#                         if line.empty():
+#                             curr_row.append(prev_str)
+#                             df.loc[len(df.index)] = curr_row
+#                             curr_row = []
+#                         else:
+#                             prev_str += '\t' + line
+                        
+                    
+#         return df
 
 
 # In[11]:
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def __calc_lock(self, df_perf):
         start_time = 0
         
@@ -463,25 +541,28 @@ class ExprData():
         return df_perf
         
     def process_csv_and_load(self):
-        self.wl_groups, self.wl_names, self.cpu_nums, self.run_idx, self.sampled_run_idx = [], [], [], [], []
+        self.wl_groups, self.wl_names, self.cpu_nums, self.mem_sizes, self.run_idx, self.sampled_run_idx = [], [], [], [], [], []
         self.query_event_dfs, self.query_plan_dfs, self.query_perf_dfs = [], [], []
         self.wl_throughput, self.wl_latency, self.terminal_num, self.wl_throughput_samples, self.wl_latency_samples = [], [], [], [], []
-        
-        run_idx = 0
-        
+        mem_size = 32
+        run_idx = 35
+        wl_group = 13
         for subfd in os.listdir(self.__fdn):
             curr_wl = os.path.join(self.__fdn, subfd)
 
-            if os.path.isfile(curr_wl) or self.__wl_group_prefix not in subfd:
+            if os.path.isfile(curr_wl):# or self.__wl_group_prefix not in subfd:
                 continue
-            wl_group = int(subfd[len(self.__wl_group_prefix):])
+            curr_wl_group = str(wl_group)
+            wl_group += 1
+            
             for subfd in os.listdir(curr_wl):
                 if '_remote_' not in subfd:
                     continue
                 curr_run = os.path.join(curr_wl, subfd)
                 curr_run_idx = run_idx
                 run_idx = run_idx + 1
-                curr_wl_name = self.__names[wl_group-1]
+                # curr_wl_name = self.__names[wl_group-1]
+                curr_wl_name = subfd.split('_')[0]
                 print(curr_run_idx, curr_run, curr_wl_name)
                 
                 # if curr_wl_name != 'ycsb':
@@ -492,7 +573,7 @@ class ExprData():
                         continue
                     # cpu_num = int(subfd[len(self.__config_prefix):])
                     cpu_num = 'cpu{}'.format(subfd[len(self.__config_prefix):])
-
+                    
                     
                     curr_monitor = os.path.join(curr_config, 'w_monitor/results/monitor/')
                     curr_result = os.path.join(curr_config, 'w_monitor/results/')
@@ -519,102 +600,64 @@ class ExprData():
                         if 'samples.csv' in subf:
                             df_result = pd.read_csv(os.path.join(curr_result, subf), sep=',', header=0)
                             df_result = df_result[df_result.select_dtypes(include=[np.number]).ge(0).all(1)]
+                            # df_result.replace(-1, np.nan, inplace=True)
+                            # df_result.ffill(inplace=True)
+
+
                             df_result = df_result[['Throughput (requests/second)', 'Average Latency (microseconds)']]
                             df_result['Average Latency (microseconds)'] = df_result['Average Latency (microseconds)']/1000.0
                     self.wl_throughput.append(curr_thr)
                     self.wl_latency.append(curr_lat)
                     self.terminal_num.append(curr_term)
+                    self.mem_sizes.append(mem_size)
                     self.wl_throughput_samples.append(df_result['Throughput (requests/second)'].to_list())
                     self.wl_latency_samples.append(df_result['Average Latency (microseconds)'].to_list())
-                    
+
+                    query_event_df = None
+                    query_plan_df = None
                     for subfd in os.listdir(curr_monitor):
-                        if 'query_event_log.csv' in subfd:
+                        if 'repeated_query_event' in subfd:
                             curr_file = os.path.join(curr_monitor, subfd)
                             df = pd.read_csv(curr_file, sep=',', header=0)
-                            first_column = df.pop('TIMESTAMP')
-                            df.drop([ 'PLAN_HANDLE', 'IDENTIFIER'], axis=1, inplace=True)
-                            df.insert(0, 'TIMESTAMP', first_column)
-                            self.query_event_dfs.append(df)
-                            # query_event_dfs.append(df.loc[:, df.columns != 'TIMESTAMP'].to_numpy())
-                            self.wl_groups.append(wl_group)
-                            self.run_idx.append(curr_run_idx)     
-                            self.sampled_run_idx.append(run_idx)
-                            self.cpu_nums.append(cpu_num)
-                            self.wl_names.append(curr_wl_name)
-                        if 'query_info_log.csv' in subfd:
-                            curr_file = os.path.join(curr_monitor, subfd)
-                            if curr_wl_name == 'tpch' or curr_wl_name == 'ycsb':
-                                sep = '||'
+                            first_column = df.pop('Instant')
+                            df.drop([ 'plan_handle', 'QueryId'], axis=1, inplace=True)
+                            df.insert(0, 'Instant', first_column)
+                            if query_event_df is None:
+                                query_event_df = df
                             else:
-                                sep = '|'
-                            df2 = self.__manual_read_plan_csv(curr_file, sep)
+                                query_event_df = pd.concat([query_event_df, df], ignore_index=True)
+                        if 'single_query_event' in subfd:
+                            curr_file = os.path.join(curr_monitor, subfd)
+
+                            df2 = self.__manual_read_plan_csv(curr_file, ',')
                             if (df2.shape[1] != 4):
                                 print("this should not happen")
-                            self.query_plan_dfs.append(df2)
-                        if 'perf_event_log.csv' in subfd:
-                            # read perf
-                            df_perf = pd.read_csv(os.path.join(curr_monitor, subfd), header=0, parse_dates=True)
-                            df_perf['TIMESTAMP'] = pd.to_datetime(df_perf['TIMESTAMP'],  format='%Y.%m.%d-%H:%M:%S:%f')
+                            if query_plan_df is None:
+                                query_plan_df = df2
+                            else:
+                                query_plan_df = pd.concat([query_plan_df, df2], ignore_index=True)
 
-                            # perf cpu util
-                            df_perf['CPU_UTILIZATION'] = (df_perf['CPU_USAGE_PERC'] / df_perf['CPU_USAGE_PERC_BASE']) * 100
-                            df_perf['CPU_EFFECTIVE'] = (df_perf['CPU_EFFECTIVE_PERC'] / df_perf['CPU_EFFECTIVE_PERC_BASE']) * 100
-                            df_perf['IOPS_TOTAL'] = df_perf['DISK_READ_IOPS'] + df_perf['DISK_WRITE_IOPS']
-                            df_perf['READ_WRITE_RATIO'] = (df_perf['DISK_READ_IOPS'] / df_perf['DISK_WRITE_IOPS']) * 100
-                            df_perf['MEM_UTILIZATION'] = (df_perf['USED_MEMORY'] / df_perf['TARGET_MEMORY']) * 100
-                            df_perf = self.__calc_lock(df_perf)
 
-                            df_perf = df_perf.sort_values(by='TIMESTAMP').drop_duplicates()
-                            df_perf.replace([np.inf, -np.inf], 0, inplace=True)
-                            df_perf.fillna(0, inplace=True)
-                            df_perf = df_perf[self.perf_feature_cols]
-                            self.query_perf_dfs.append(df_perf)
-
-        fdn='../model/new_dataset'
-        wl_group_prefix = 'xml_ter_'
-        config_prefix = 'xml_ter_'
-        idx = len(np.unique(self.wl_groups))+1
-        for subfd in os.listdir(fdn):
-            # xml_ter_?
-            curr_wl = os.path.join(fdn, subfd)
-
-            if os.path.isfile(curr_wl) or wl_group_prefix not in subfd:
-                continue
-
-            wl_group = idx
-            idx = idx + 1
-            terminal_num = 'ter{}'.format(subfd[len(config_prefix):])
-            curr_wl_name = 'xml'
-
-            self.query_event_dfs.append(None)
-            self.query_perf_dfs.append(None)
-            self.wl_groups.append(wl_group)
-            self.cpu_nums.append(terminal_num)
-            self.run_idx.append(run_idx)
-            self.sampled_run_idx.append(run_idx)
-            run_idx = run_idx + 1
-            self.wl_names.append(curr_wl_name)
-            self.wl_throughput.append(None)
-            self.wl_latency.append(None)
-            self.terminal_num.append(None)
-            self.wl_throughput_samples.append(None)
-            self.wl_latency_samples.append(None)
-            plans = []
-            for subfd in os.listdir(curr_wl):
-                # xml_output_?.txt
-                curr_config = os.path.join(curr_wl, subfd)
-
-                if 'xml_output_' in subfd:
-                    curr_file = os.path.join(curr_wl, subfd)
-                    with open(curr_file) as f:
-                        curr_plans = f.readlines()
-                        plans = plans + curr_plans
-            self.query_plan_dfs.append(pd.DataFrame(plans, columns = ['QUERY_PLAN']))
+                    self.query_perf_dfs.append(None)
+                    if query_plan_df is None or query_plan_df.shape[0] == 0 or query_plan_df.shape[1] == 0:
+                        print('hereh', curr_monitor)
+                    self.query_plan_dfs.append(query_plan_df)
+                    self.query_event_dfs.append(query_event_df)
+                    self.wl_groups.append(curr_wl_group)
+                    self.run_idx.append(curr_run_idx)     
+                    self.sampled_run_idx.append(curr_run_idx)
+                    self.cpu_nums.append(cpu_num)
+                    self.wl_names.append(curr_wl_name)
         
         self.__plan_to_mtx()
+        
+        # for df in self.query_plan_dfs:
+        #     print(df.columns.to_list() == self.plan_feature_cols)
+        #     print(df.shape)
+        #     print(df.columns)
 
         self.plan_mtxs = [df[self.plan_feature_cols].to_numpy() for df in self.query_plan_dfs]
-        self.perf_mtxs = [df[self.perf_feature_cols].to_numpy() if df is not None else None for df in self.query_perf_dfs]
+        self.perf_mtxs = [df[self.perf_feature_cols].to_numpy() if df is not None else np.array([[]]) for df in self.query_perf_dfs]
         self.feature_cols = np.concatenate((self.plan_feature_cols, self.perf_feature_cols), axis=None)
 
         self.__process_csv_to_pickle()
@@ -623,37 +666,38 @@ class ExprData():
 
 
 @update_class()
-class ExprData():
+class ExprDataMemCPU():
     def split_by_sku(self):
-        result = {cpu : ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
-                                 wl_throughput=[], wl_latency=[], terminal_num=[],
+        configs = list(itertools.product(np.unique(self.cpu_nums), np.unique(self.mem_sizes)))
+        result = {conf : ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
+                                 wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                                  wl_throughput_samples=[], wl_latency_samples=[],
                                  query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                                  plan_mtxs=[], perf_mtxs=[], 
                                  plan_feature_cols=self.plan_feature_cols, perf_feature_cols=self.perf_feature_cols) 
-                  for cpu in np.unique(self.cpu_nums)}
+                  for conf in configs}
         for i in range(len(self.wl_groups)):
-            cpu = self.cpu_nums[i]
-            result[cpu].wl_groups.append(self.wl_groups[i])
-            result[cpu].wl_names.append(self.wl_names[i])
-            result[cpu].cpu_nums.append(self.cpu_nums[i])
-            result[cpu].run_idx.append(self.run_idx[i])
-            result[cpu].sampled_run_idx.append(self.sampled_run_idx[i])
-            result[cpu].query_event_dfs.append(self.query_event_dfs[i])
-            result[cpu].query_plan_dfs.append(self.query_plan_dfs[i])
-            result[cpu].query_perf_dfs.append(self.query_perf_dfs[i])
-            result[cpu].plan_mtxs.append(self.plan_mtxs[i])
-            result[cpu].perf_mtxs.append(self.perf_mtxs[i])
-            result[cpu].wl_throughput.append(self.wl_throughput[i])
-            result[cpu].wl_latency.append(self.wl_latency[i])
-            result[cpu].terminal_num.append(self.terminal_num[i])
-            result[cpu].wl_throughput_samples.append(self.wl_throughput_samples[i])
-            result[cpu].wl_latency_samples.append(self.wl_latency_samples[i])
+            group = (self.cpu_nums[i], self.mem_sizes[i])
+            result[group].wl_groups.append(self.wl_groups[i])
+            result[group].wl_names.append(self.wl_names[i])
+            result[group].cpu_nums.append(self.cpu_nums[i])
+            result[group].mem_sizes.append(self.mem_sizes[i])
+            result[group].run_idx.append(self.run_idx[i])
+            result[group].sampled_run_idx.append(self.sampled_run_idx[i])
+            result[group].query_event_dfs.append(self.query_event_dfs[i])
+            result[group].query_plan_dfs.append(self.query_plan_dfs[i])
+            result[group].query_perf_dfs.append(self.query_perf_dfs[i])
+            result[group].plan_mtxs.append(self.plan_mtxs[i])
+            result[group].perf_mtxs.append(self.perf_mtxs[i])
+            result[group].wl_throughput.append(self.wl_throughput[i])
+            result[group].wl_latency.append(self.wl_latency[i])
+            result[group].terminal_num.append(self.terminal_num[i])
+            result[group].wl_throughput_samples.append(self.wl_throughput_samples[i])
+            result[group].wl_latency_samples.append(self.wl_latency_samples[i])
         return result
-
     def split_by_type(self):
-        result = {expr : ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
-                                 wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = {expr : ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
+                                 wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                                  wl_throughput_samples=[], wl_latency_samples=[],
                                  query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                                  plan_mtxs=[], perf_mtxs=[], 
@@ -664,6 +708,7 @@ class ExprData():
             result[group].wl_groups.append(self.wl_groups[i])
             result[group].wl_names.append(self.wl_names[i])
             result[group].cpu_nums.append(self.cpu_nums[i])
+            result[group].mem_sizes.append(self.mem_sizes[i])
             result[group].run_idx.append(self.run_idx[i])
             result[group].sampled_run_idx.append(self.sampled_run_idx[i])
             result[group].query_event_dfs.append(self.query_event_dfs[i])
@@ -678,9 +723,46 @@ class ExprData():
             result[group].wl_latency_samples.append(self.wl_latency_samples[i])
         return result
     
+
+    def split_by_config(self):
+        configs = list(itertools.product(np.unique(self.wl_names), np.unique(self.terminal_num)))
+        result = {conf : ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
+                                 wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
+                                 wl_throughput_samples=[], wl_latency_samples=[],
+                                 query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
+                                 plan_mtxs=[], perf_mtxs=[], 
+                                 plan_feature_cols=self.plan_feature_cols, perf_feature_cols=self.perf_feature_cols) 
+                  for conf in configs}
+        for i in range(len(self.wl_groups)):
+            group = (self.wl_names[i], self.terminal_num[i])
+            result[group].wl_groups.append(self.wl_groups[i])
+            result[group].wl_names.append(self.wl_names[i])
+            result[group].cpu_nums.append(self.cpu_nums[i])
+            result[group].mem_sizes.append(self.mem_sizes[i])
+            result[group].run_idx.append(self.run_idx[i])
+            result[group].sampled_run_idx.append(self.sampled_run_idx[i])
+            result[group].query_event_dfs.append(self.query_event_dfs[i])
+            result[group].query_plan_dfs.append(self.query_plan_dfs[i])
+            result[group].query_perf_dfs.append(self.query_perf_dfs[i])
+            result[group].plan_mtxs.append(self.plan_mtxs[i])
+            result[group].perf_mtxs.append(self.perf_mtxs[i])
+            result[group].wl_throughput.append(self.wl_throughput[i])
+            result[group].wl_latency.append(self.wl_latency[i])
+            result[group].terminal_num.append(self.terminal_num[i])
+            result[group].wl_throughput_samples.append(self.wl_throughput_samples[i])
+            result[group].wl_latency_samples.append(self.wl_latency_samples[i])
+        tbd = []
+        for key, val in result.items():
+            if len(val.wl_groups) == 0:
+                tbd.append(key)
+        for key in tbd:
+            del result[key]
+
+        return result
+    
     def split_by_expr(self):
-        result = {expr : ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
-                                 wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = {expr : ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
+                                 wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                                  wl_throughput_samples=[], wl_latency_samples=[],
                                  query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                                  plan_mtxs=[], perf_mtxs=[], 
@@ -691,6 +773,7 @@ class ExprData():
             result[group].wl_groups.append(self.wl_groups[i])
             result[group].wl_names.append(self.wl_names[i])
             result[group].cpu_nums.append(self.cpu_nums[i])
+            result[group].mem_sizes.append(self.mem_sizes[i])
             result[group].run_idx.append(self.run_idx[i])
             result[group].sampled_run_idx.append(self.sampled_run_idx[i])
             result[group].query_event_dfs.append(self.query_event_dfs[i])
@@ -706,8 +789,8 @@ class ExprData():
         return result
     
     def split_by_term(self):
-        result = {expr : ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
-                                 wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = {expr : ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx=[],
+                                 wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                                  wl_throughput_samples=[], wl_latency_samples=[],
                                  query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                                  plan_mtxs=[], perf_mtxs=[], 
@@ -718,6 +801,7 @@ class ExprData():
             result[group].wl_groups.append(self.wl_groups[i])
             result[group].wl_names.append(self.wl_names[i])
             result[group].cpu_nums.append(self.cpu_nums[i])
+            result[group].mem_sizes.append(self.mem_sizes[i])
             result[group].run_idx.append(self.run_idx[i])
             result[group].sampled_run_idx.append(self.sampled_run_idx[i])
             result[group].query_event_dfs.append(self.query_event_dfs[i])
@@ -734,6 +818,7 @@ class ExprData():
     
     def add_exprs(self, expr_b):
         self.cpu_nums += expr_b.cpu_nums
+        self.mem_sizes += expr_b.mem_sizes
         self.run_idx += expr_b.run_idx
         self.sampled_run_idx += expr_b.sampled_run_idx
         self.wl_groups += expr_b.wl_groups
@@ -752,6 +837,7 @@ class ExprData():
         result.wl_groups.append(self.wl_groups[i])
         result.wl_names.append(self.wl_names[i])
         result.cpu_nums.append(self.cpu_nums[i])
+        result.mem_sizes.append(self.mem_sizes[i])
         result.run_idx.append(self.run_idx[i])
         result.sampled_run_idx.append(self.sampled_run_idx[i])
         result.query_event_dfs.append(self.query_event_dfs[i])
@@ -767,8 +853,8 @@ class ExprData():
         return result
         
     def keep_complete_exprs(self):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                         wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                         wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                          wl_throughput_samples=[], wl_latency_samples=[],
                          query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                          plan_mtxs=[], perf_mtxs=[], 
@@ -779,8 +865,8 @@ class ExprData():
         return result
     
     def remove_by_group(self, group_list_to_remove):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                         wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                         wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                          wl_throughput_samples=[], wl_latency_samples=[],
                          query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                          plan_mtxs=[], perf_mtxs=[], 
@@ -791,9 +877,22 @@ class ExprData():
             result = self.__add_expr_from_self(result, i)
         return result
     
+    def remove_by_config(self, config_list_to_remove):
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                         wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
+                         wl_throughput_samples=[], wl_latency_samples=[],
+                         query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
+                         plan_mtxs=[], perf_mtxs=[], 
+                         plan_feature_cols=self.plan_feature_cols, perf_feature_cols=self.perf_feature_cols) 
+        for i in range(len(self.wl_groups)):
+            if (self.wl_names[i], self.terminal_num[i]) in config_list_to_remove:
+                continue
+            result = self.__add_expr_from_self(result, i)
+        return result
+    
     def remove_by_wlname(self, wlnames_to_remove):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                         wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                         wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                          wl_throughput_samples=[], wl_latency_samples=[],
                          query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                          plan_mtxs=[], perf_mtxs=[], 
@@ -816,8 +915,8 @@ class ExprData():
         return temp
 
     def sample_data(self, num_sample_per_run=10):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                         wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                         wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                          wl_throughput_samples=[], wl_latency_samples=[],
                          query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                          plan_mtxs=[], perf_mtxs=[], 
@@ -832,13 +931,21 @@ class ExprData():
                         # not sample
                         result = self.__add_expr_from_self(result, i)
                         continue
-        
                     query_event_length = self.query_event_dfs[i].shape[0];
                     query_event_sample_size = self.__calculate_num_samples(query_event_length)
-                    perf_length = self.query_perf_dfs[i].shape[0]
-                    perf_sample_size = self.__calculate_num_samples(perf_length)
+                    if self.query_perf_dfs[i] is None:
+                        result.query_perf_dfs.append(None)
+                        result.perf_mtxs.append(None)
+                    else:
+                        perf_length = self.query_perf_dfs[i].shape[0]
+                        perf_sample_size = self.__calculate_num_samples(perf_length)
+                        perf_idxs = self.__sample_helper(perf_length, perf_sample_size)
+                        result.query_perf_dfs.append(self.query_perf_dfs[i].iloc[perf_idxs])
+                        result.perf_mtxs.append(np.array(self.perf_mtxs[i])[perf_idxs.astype(int)])
+            
                     plan_length = self.query_plan_dfs[i].shape[0]
                     plan_sample_size = self.__calculate_num_samples(plan_length)
+                    
                 
                     thr_lat_length = len(self.wl_throughput_samples[i])
                     thr_lat_sample_size = self.__calculate_num_samples(thr_lat_length)
@@ -846,18 +953,16 @@ class ExprData():
                     result.wl_groups.append(self.wl_groups[i])
                     result.wl_names.append(self.wl_names[i])
                     result.cpu_nums.append(self.cpu_nums[i])
+                    result.mem_sizes.append(self.mem_sizes[i])
                     result.run_idx.append(self.run_idx[i])
                     result.sampled_run_idx.append(sampled_run_idx)
                     result.terminal_num.append(self.terminal_num[i])
                     
                     result.query_event_dfs.append(self.query_event_dfs[i].iloc[self.__sample_helper(query_event_length, query_event_sample_size)])
                     plan_idxs = self.__sample_helper(plan_length, plan_sample_size)
-                    perf_idxs = self.__sample_helper(perf_length, perf_sample_size)
                     result.query_plan_dfs.append(self.query_plan_dfs[i].iloc[plan_idxs])
-                    result.query_perf_dfs.append(self.query_perf_dfs[i].iloc[perf_idxs])
                     result.plan_mtxs.append(np.array(self.plan_mtxs[i])[plan_idxs.astype(int)])
-                    result.perf_mtxs.append(np.array(self.perf_mtxs[i])[perf_idxs.astype(int)])
-            
+
                     thr_lat_idxs = self.__sample_helper(thr_lat_length, thr_lat_sample_size)
                     wl_thr_samples = np.array(self.wl_throughput_samples[i])[thr_lat_idxs]
                     wl_lat_samples = np.array(self.wl_latency_samples[i])[thr_lat_idxs]
@@ -869,8 +974,8 @@ class ExprData():
         return result
     
     def get_by_run_idx(self, run_idx):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                         wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                         wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                          wl_throughput_samples=[], wl_latency_samples=[],
                          query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                          plan_mtxs=[], perf_mtxs=[], 
@@ -881,8 +986,8 @@ class ExprData():
         return result
     
     def merge_tpch(self):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                     wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                     wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                      wl_throughput_samples=[], wl_latency_samples=[],
                      query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                      plan_mtxs=[], perf_mtxs=[], 
@@ -898,8 +1003,8 @@ class ExprData():
         return result
     
     def fix_tpch(self):
-        result = ExprData(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
-                     wl_throughput=[], wl_latency=[], terminal_num=[],
+        result = ExprDataMemCPU(wl_groups=[], wl_names=[], cpu_nums=[], run_idx=[], sampled_run_idx = [],
+                     wl_throughput=[], wl_latency=[], terminal_num=[], mem_sizes=[],
                      wl_throughput_samples=[], wl_latency_samples=[],
                      query_event_dfs=[], query_plan_dfs=[], query_perf_dfs=[],
                      plan_mtxs=[], perf_mtxs=[], 

@@ -69,7 +69,7 @@ def update_class(main_class=None, exclude=("__module__", "__name__", "__dict__",
 
 
 class Similarity():
-    def __init__(self, data, plan_mtxs_splitted, plan_col_ranges, perf_mtxs_splitted, perf_col_ranges, num_bins=10):
+    def __init__(self, data, plan_mtxs_splitted, plan_col_ranges, perf_mtxs_splitted, perf_col_ranges, weight_range=(0.01, 100), num_bins=10):
         self.plan_mtxs_splitted = plan_mtxs_splitted
         self.plan_col_ranges = plan_col_ranges
         self.perf_mtxs_splitted = perf_mtxs_splitted
@@ -88,6 +88,9 @@ class Similarity():
         self.simi_mtx = None
 
         self.data = data
+        
+        self.weight_range = weight_range
+        self.max_iter = 100
 
 
 # In[4]:
@@ -312,7 +315,7 @@ class Similarity():
     '''
     calculate matrix distances by DTW, only for resource utilization data (perf)
     '''
-    def calc_dtw_simi_matrix(self, perf_feature_names=None, normalize=True):
+    def calc_dtw_simi_matrix(self, perf_feature_names=None, normalize=False):
         if perf_feature_names is None:
             perf_feature_names = self.data.perf_feature_cols
         keep_cols = self.filter_by_features(perf_feature_names, mode='perf')
@@ -325,7 +328,7 @@ class Similarity():
                 if i == j:
                     continue
                 else:
-                    simi_mtx[i][j] = self.__comp_dtw(ndarrs[i], ndarrs[j])
+                    simi_mtx[i][j] = self.__comp_dtw(ndarrs[i], ndarrs[j]) / len(keep_cols)
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
                 if i < j:
@@ -338,7 +341,7 @@ class Similarity():
     '''
     calculate timeseries matrix distances by Norms
     '''
-    def calc_simi_matrix(self, perf_feature_names=None, norm_type='l11', normalize=True):
+    def calc_simi_matrix(self, perf_feature_names=None, norm_type='l11', normalize=False):
         if perf_feature_names is None:
             perf_feature_names = self.data.perf_feature_cols
         keep_cols = self.filter_by_features(perf_feature_names, mode='perf')
@@ -354,17 +357,58 @@ class Similarity():
                     continue
                 else:
                     if norm_type == 'l11':
-                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'l21':
-                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'fro':
-                        simi_mtx[i][j] = self.__comp_fro_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_fro_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'canb':
-                        simi_mtx[i][j] = self.__comp_canb_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_canb_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'chi2':
-                        simi_mtx[i][j] = self.__comp_chi2_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_chi2_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'corr':
-                        simi_mtx[i][j] = self.__comp_corr_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_corr_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
+        for i in range(len(ndarrs)):
+            for j in range(len(ndarrs)):
+                if i < j:
+                    simi_mtx[i][j] = simi_mtx[j][i]
+        if np.isnan(np.min(simi_mtx)):
+            print("NAN detected")
+        if normalize:
+            self.simi_mtx = preprocessing.minmax_scale(simi_mtx.T).T
+        else:
+            self.simi_mtx = simi_mtx
+            
+        '''
+    calculate timeseries matrix distances by Norms
+    '''
+    def calc_plan_simi_matrix(self, plan_feature_names=None, norm_type='l11', normalize=False):
+        if plan_feature_names is None:
+            plan_feature_names = self.data.plan_feature_cols
+        keep_cols = self.filter_by_features(plan_feature_names, mode='plan')
+        
+        min_length = np.min([b.shape[0] for b in self.plan_mtxs_splitted])
+
+        ndarrs = [b[:min_length, keep_cols] for b in self.plan_mtxs_splitted]
+
+        simi_mtx = np.zeros((len(ndarrs), len(ndarrs)))
+        for i in range(len(ndarrs)): # for each experiment with idx i
+            for j in range(i+1): # for each experiment idx <- i
+                if i == j:
+                    continue
+                else:
+                    if norm_type == 'l11':
+                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
+                    elif norm_type == 'l21':
+                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
+                    elif norm_type == 'fro':
+                        simi_mtx[i][j] = self.__comp_fro_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
+                    elif norm_type == 'canb':
+                        simi_mtx[i][j] = self.__comp_canb_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
+                    elif norm_type == 'chi2':
+                        simi_mtx[i][j] = self.__comp_chi2_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
+                    elif norm_type == 'corr':
+                        simi_mtx[i][j] = self.__comp_corr_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
                 if i < j:
@@ -377,7 +421,7 @@ class Similarity():
     '''
     calculate matrix distances by DTW, only for resource utilization data (perf)
     '''
-    def calc_ind_dtw_simi_matrix(self, perf_feature_names=None, normalize=True):
+    def calc_ind_dtw_simi_matrix(self, perf_feature_names=None, normalize=False):
         if perf_feature_names is None:
             perf_feature_names = self.data.perf_feature_cols
         keep_cols = self.filter_by_features(perf_feature_names, mode='perf')
@@ -390,7 +434,7 @@ class Similarity():
                 if i == j:
                     continue
                 else:
-                    simi_mtx[i][j] = self.__comp_col_dtw(ndarrs[i], ndarrs[j])
+                    simi_mtx[i][j] = self.__comp_col_dtw(ndarrs[i], ndarrs[j]) / len(keep_cols)
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
                 if i < j:
@@ -404,7 +448,7 @@ class Similarity():
     '''
     calculate matrix distances by LCSS, only for resource utilization data (perf)
     '''
-    def calc_lcss_simi_matrix(self, perf_feature_names=None, normalize=True):
+    def calc_lcss_simi_matrix(self, perf_feature_names=None, normalize=False):
         if perf_feature_names is None:
             perf_feature_names = self.data.perf_feature_cols
         keep_cols = self.filter_by_features(perf_feature_names, mode='perf')
@@ -417,7 +461,34 @@ class Similarity():
                 if i == j:
                     continue
                 else:
-                    simi_mtx[i][j] = self.__comp_lcss(ndarrs[i], ndarrs[j])
+                    simi_mtx[i][j] = self.__comp_lcss(ndarrs[i], ndarrs[j]) / len(keep_cols)
+        for i in range(len(ndarrs)):
+            for j in range(len(ndarrs)):
+                if i < j:
+                    simi_mtx[i][j] = simi_mtx[j][i]
+        if normalize:
+            self.simi_mtx = preprocessing.minmax_scale(simi_mtx.T).T
+        else:
+            self.simi_mtx = simi_mtx
+            
+    
+    '''
+    calculate matrix distances by LCSS, only for resource utilization data (perf)
+    '''
+    def calc_plan_lcss_simi_matrix(self, plan_feature_names=None, normalize=False):
+        if plan_feature_names is None:
+            plan_feature_names = self.data.plan_feature_cols
+        keep_cols = self.filter_by_features(plan_feature_names, mode='plan')
+
+        ndarrs = [b[:, keep_cols] for b in self.plan_mtxs_splitted]
+
+        simi_mtx = np.zeros((len(ndarrs), len(ndarrs)))
+        for i in range(len(ndarrs)): # for each experiment with idx i
+            for j in range(i+1): # for each experiment idx <- i
+                if i == j:
+                    continue
+                else:
+                    simi_mtx[i][j] = self.__comp_lcss(ndarrs[i], ndarrs[j]) / len(keep_cols)
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
                 if i < j:
@@ -430,7 +501,7 @@ class Similarity():
     '''
     calculate colwise matrix distances by LCSS, only for resource utilization data (perf)
     '''
-    def calc_ind_lcss_simi_matrix(self, perf_feature_names=None, normalize=True):
+    def calc_ind_lcss_simi_matrix(self, perf_feature_names=None, normalize=False):
         if perf_feature_names is None:
             perf_feature_names = self.data.perf_feature_cols
         keep_cols = self.filter_by_features(perf_feature_names, mode='perf')
@@ -443,7 +514,7 @@ class Similarity():
                 if i == j:
                     continue
                 else:
-                    simi_mtx[i][j] = self.__comp_col_lcss(ndarrs[i], ndarrs[j])
+                    simi_mtx[i][j] = self.__comp_col_lcss(ndarrs[i], ndarrs[j]) / len(keep_cols)
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
                 if i < j:
@@ -508,7 +579,7 @@ class Similarity():
         return distance
                 
         
-    def calc_phase_simi_matrix(self, feature_names=None, cpd='Kernel', penalty=10, norm_type='l11', normalize=True):
+    def calc_phase_simi_matrix(self, feature_names=None, cpd='Kernel', penalty=10, norm_type='l11', normalize=False):
         if feature_names is None:
             feature_names = self.data.feature_cols
         plan_keep_idxs, perf_keep_idxs = self.filter_by_features_seperate(feature_names)
@@ -565,7 +636,7 @@ class Similarity():
                 if i == j:
                     continue
                 else:
-                    phase_simi_mtx[i][j] = self.__comp_phase_dist(distributions[i], distributions[j], norm_type)
+                    phase_simi_mtx[i][j] = self.__comp_phase_dist(distributions[i], distributions[j], norm_type) / (len(plan_keep_idxs) + len(perf_keep_idxs))
         for i in range(len(distributions)):
             for j in range(len(distributions)):
                 if i < j:
@@ -592,7 +663,7 @@ class Similarity():
     '''
     Given list of matrices, output the pairwise distribution similarity matrix
     '''
-    def calc_dist_simi_matrix(self, cumulative=False, feature_names=None, norm_type='l11', normalize=True, timeit=False):
+    def calc_dist_simi_matrix(self, cumulative=False, feature_names=None, norm_type='l11', normalize=False, timeit=False):
         if feature_names is None:
             feature_names = self.data.feature_cols
         keep_cols = self.filter_by_features(feature_names)
@@ -614,17 +685,17 @@ class Similarity():
                     continue
                 else:
                     if norm_type == 'l11':
-                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'l21':
-                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'fro':
-                        simi_mtx[i][j] = self.__comp_fro_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_fro_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'canb':
-                        simi_mtx[i][j] = self.__comp_canb_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_canb_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'chi2':
-                        simi_mtx[i][j] = self.__comp_chi2_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_chi2_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'corr':
-                        simi_mtx[i][j] = self.__comp_corr_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_corr_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                             
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
@@ -643,7 +714,7 @@ class Similarity():
     '''
     Given list of matrices, output the column wise pairwise distribution similarity matrix
     '''
-    def calc_col_dist_simi_matrix(self, cumulative=False, feature_names=None, norm_type='l11', normalize=True):
+    def calc_col_dist_simi_matrix(self, cumulative=False, feature_names=None, norm_type='l11', normalize=False):
         if feature_names is None:
             feature_names = self.data.feature_cols
         keep_cols = self.filter_by_features(feature_names)
@@ -662,9 +733,9 @@ class Similarity():
                     continue
                 else:
                     if norm_type == 'l11':
-                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_l11_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                     elif norm_type == 'l21':
-                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j])
+                        simi_mtx[i][j] = self.__comp_l21_norm(ndarrs[i], ndarrs[j]) / len(keep_cols)
                             
         for i in range(len(ndarrs)):
             for j in range(len(ndarrs)):
@@ -778,11 +849,14 @@ class Similarity():
     # knn distance scoring?
     # if label wrong: 10
     # else cpu_num_diff*0.1
-    def simi_penalty(self, n=1, dependent=True):
-        if dependent:
-            simi = self.simi_mtx
+    def simi_penalty(self, n=1, dependent=True, simi=None):
+        if simi is not None:
+            simi = simi
         else:
-            simi = self.simi_col_mtx
+            if dependent:
+                simi = self.simi_mtx
+            else:
+                simi = self.simi_col_mtx
         wrong_penalty = 10
         param_penalty_rate = 1
 

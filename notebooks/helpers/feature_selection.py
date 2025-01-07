@@ -100,7 +100,16 @@ class FeatureSelection():
         selector = Lasso(alpha=0.1).fit(X, y) # C 
         scores = np.abs(selector.coef_)
         return FeatureSelection.__sparse_argsort(scores)
-    
+        
+    @staticmethod
+    def __rand_forest_orders(X, y):
+        selector = RandomForestClassifier(random_state=42, 
+                                          n_jobs=-1, 
+                                          n_estimators=100, 
+                                          max_depth=5).fit(X, y) # C 
+        scores = np.abs(selector.feature_importances_)
+        return FeatureSelection.__sparse_argsort(scores)
+            
     @staticmethod
     def __enet_weights_orders(X, y):
         selector = ElasticNet(alpha=0.1, l1_ratio=0.5).fit(X, y)
@@ -158,6 +167,8 @@ class FeatureSelection():
                 orders = FeatureSelection.__select_k_best(X, y, method='MutualInfoGain')
             elif method == 'Pearson':
                 orders = FeatureSelection.__select_k_best(X, y, method='Pearson')
+            elif method == 'RandomForest':
+                orders = FeatureSelection.__rand_forest_orders(X, y)
             elif method == 'RFE':
                 orders = FeatureSelection.__rfe_orders(X, y, est_name)
             elif method == 'Boruta':            
@@ -178,7 +189,8 @@ class FeatureSelection():
     def __sfs_orders(self, num_features, direction, est_name, feature_type=None):
         feature_cols = self.__get_candidate_feature_cols(feature_type)
 
-        num_features = len(self.simi_calc.feature_cols)
+        # num_features = len(feature_cols)
+        
         feature_importance = np.array([0]*num_features)
         expr_num = self.simi_calc.data.get_num_exprs()
 
@@ -186,12 +198,12 @@ class FeatureSelection():
 
         for i in range(expr_num):
             # calculate label
-            curr_name = self.simi_calc.wl_names[i]
-            y = [curr_name == name for name in self.simi_calc.wl_names]
-            X = simi_calc.simi_col_mtx[i]
+            curr_name = self.simi_calc.data.wl_names[i]
+            y = [curr_name == name for name in self.simi_calc.data.wl_names]
+            X = self.simi_calc.simi_col_mtx[i]
             estimator = FeatureSelection.__get_est(est_name)
 
-            selector = SequentialFeatureSelector(estimator, direction=direction.lower(), n_features_to_select=num_features, n_jobs=-2, cv=3)
+            selector = SequentialFeatureSelector(estimator, direction=direction.lower(), n_features_to_select=num_features, n_jobs=-1, cv=3)
             selector = selector.fit(X, y)
             mask = selector.get_support()
             for idx in range(num_features):
